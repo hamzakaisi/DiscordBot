@@ -36,13 +36,13 @@ client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
   // Schedule #1 – 12:41 AM EDT (4:41 AM UTC) – asking about 5 AM wash
-  schedule.scheduleJob("46 16 * * *", () => {
-    sendWashMessage("5 AM");
+  schedule.scheduleJob("0 5 * * *", () => {
+    sendWashMessage("5 AM EST");
   });
 
   // Schedule #2 – 12:41 PM EDT (4:41 PM UTC) – asking about 3 PM wash
-  schedule.scheduleJob("46 4 * * *", () => {
-    sendWashMessage("3 PM");
+  schedule.scheduleJob("0 17 * * *", () => {
+    sendWashMessage("3 PM EST");
   });
 });
 

@@ -1,18 +1,22 @@
-const { Client, GatewayIntentBits } = require("discord.js");
+const { Client, GatewayIntentBits, PermissionsBitField } = require("discord.js");
 const schedule = require("node-schedule");
 const express = require("express");
 
-// Setup express to keep Replit awake
+// Setup express (optional for uptime)
 const app = express();
 app.get("/", (req, res) => res.send("Gang Wash Bot is alive!"));
-app.listen(3000, () => console.log("Web server running..."));
+app.listen(3000, () => console.log("🌐 Web server running..."));
 
 // Initialize the bot
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ],
 });
 
-// Your gang members – replace with real Discord user IDs
+// Gang members (Mention format)
 const gangMembers = [
   "<@222153000284717058>", //Connor
   "<@364841539626598414>", //Frenchie
@@ -28,49 +32,61 @@ const gangMembers = [
   "<@192847925032779776>", //Throck
 ];
 
-// Keeps track of who has already been selected
 let selectedMembers = [];
+let currentSelectedMember = null; // for tracking replies
 
-// Initialize the bot when it's ready
 client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
-  // Schedule #1 – 1 AM EDT (5 AM UTC) – asking about 5 AM wash
-  schedule.scheduleJob("0 5 * * *", () => {
+  // 1 AM EDT = 5 AM UTC
+  schedule.scheduleJob("0 7 * * *", () => {
     sendWashMessage("5 AM");
   });
 
-  // Schedule #2 – 1 PM EDT (5 PM UTC) – asking about 3 PM wash
-  schedule.scheduleJob("0 17 * * *", () => {
+  // 1 PM EDT = 17 UTC
+  schedule.scheduleJob("0 19 * * *", () => {
     sendWashMessage("3 PM");
   });
 });
 
-// Listen for messages to trigger the !test command
-client.on("messageCreate", (message) => {
-  console.log(`Received message from ${message.author.tag}: "${message.content}"`);
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
 
-  if (message.content.toLowerCase() === "!test") {
-    console.log('Test command received');
-    sendWashMessage("5 AM"); // Test for 5 AM
-    message.channel.send("💸 Test message sent for 5 AM! 💸");
+  const content = message.content.toLowerCase();
+
+  // !test to manually trigger
+  if (content === "!test") {
+    sendWashMessage("Test");
+    return message.channel.send("🧪 Test message sent!");
   }
 
-  // Handle responses to the Gang Wash message
-  if (selectedMembers.includes(message.author.id)) {
-    console.log(`Handling response from ${message.author.tag}: "${message.content}"`);
-    if (message.content.toLowerCase() === "yes") {
-      message.channel.send(`${message.author.tag} will wash today! 💸`);
-    } else if (message.content.toLowerCase() === "no") {
-      message.channel.send(`${message.author.tag} said no. Trying another member...`);
+  // !reset (admin only)
+  if (content === "!reset") {
+    const member = await message.guild.members.fetch(message.author.id);
+    if (member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      selectedMembers = [];
+      currentSelectedMember = null;
+      console.log("🔁 Gang wash cycle reset by admin.");
+      return message.channel.send("♻️ Cycle reset. All members are eligible again.");
+    } else {
+      return message.reply("🚫 Only admins can use this command.");
+    }
+  }
 
-      // Call the function again to pick another member for the same time slot
-      sendWashMessage(message.content.includes("5 AM") ? "5 AM" : "3 PM");
+  // Yes/No response handling
+  if (currentSelectedMember && message.author.toString() === currentSelectedMember) {
+    if (content === "yes") {
+      message.channel.send(`${message.author.tag} will wash today! 💸`);
+      currentSelectedMember = null;
+    } else if (content === "no") {
+      message.channel.send(`${message.author.tag} said no. Trying someone else...`);
+      currentSelectedMember = null;
+      sendWashMessage("Retry");
     }
   }
 });
 
-// Send wash message
+// Sends the washing message
 function sendWashMessage(timeSlot) {
   const channel = client.channels.cache.get("1358603838915088595"); // Replace with your channel ID
 
@@ -79,26 +95,24 @@ function sendWashMessage(timeSlot) {
     return;
   }
 
-  // Ensure we don't repeat members in a single day
   const availableMembers = gangMembers.filter(
     (member) => !selectedMembers.includes(member)
   );
 
-  // If everyone has been selected, reset the selectedMembers array
   if (availableMembers.length === 0) {
-    console.log("All members have been selected, resetting...");
-    selectedMembers = []; // Reset the cycle
+    selectedMembers = [];
   }
 
-  // Randomly pick the member for this round
-  const randomIndex = Math.floor(Math.random() * availableMembers.length);
-  const selectedMember = availableMembers[randomIndex];
+  const finalPool = gangMembers.filter(
+    (member) => !selectedMembers.includes(member)
+  );
 
-  // Add the selected member to the selectedMembers array
+  const randomIndex = Math.floor(Math.random() * finalPool.length);
+  const selectedMember = finalPool[randomIndex];
   selectedMembers.push(selectedMember);
+  currentSelectedMember = selectedMember;
 
-  // Ask the selected member if they will wash
-  const message = `💸 **Gang Washing Turn** 💸\n\n🧼 **Will you wash today?**\n\nHey ${selectedMember}, will you wash 1.5 million at ${timeSlot}? Reply with **yes** or **no**.`;
+  const message = `💸 **Gang Washing Turn** 💸\n\n🧼 Will you wash **1.5 million at ${timeSlot}**?\n\n${selectedMember}, reply with **yes** or **no**.`;
 
   channel.send(message);
 }

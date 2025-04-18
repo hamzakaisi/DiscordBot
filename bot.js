@@ -39,12 +39,12 @@ client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
   // 1 AM EDT = 5 AM UTC
-  schedule.scheduleJob("0 7 * * *", () => {
+  schedule.scheduleJob("37 6 * * *", () => {
     sendWashMessage("5 AM");
   });
 
   // 1 PM EDT = 17 UTC
-  schedule.scheduleJob("0 19 * * *", () => {
+  schedule.scheduleJob("37 18 * * *", () => {
     sendWashMessage("3 PM");
   });
 });

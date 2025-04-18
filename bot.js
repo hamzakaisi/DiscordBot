@@ -50,11 +50,6 @@ client.once("ready", () => {
 client.on("messageCreate", (message) => {
   console.log(`Received message from ${message.author.tag}: "${message.content}"`);
 
-  // Check if the bot was mentioned
-  if (message.content.includes(client.user.id)) {
-    console.log(`Bot was mentioned by ${message.author.tag}`);
-  }
-
   if (message.content.toLowerCase() === "!test") {
     console.log('Test command received');
     sendWashMessage("5 AM"); // Test for 5 AM
@@ -68,7 +63,9 @@ client.on("messageCreate", (message) => {
       message.channel.send(`${message.author.tag} will wash today! 💸`);
     } else if (message.content.toLowerCase() === "no") {
       message.channel.send(`${message.author.tag} said no. Trying another member...`);
-      sendWashMessage(message.content.includes("5 AM") ? "5 AM" : "3 PM"); // Retry with the same time slot
+
+      // Call the function again to pick another member for the same time slot
+      sendWashMessage(message.content.includes("5 AM") ? "5 AM" : "3 PM");
     }
   }
 });

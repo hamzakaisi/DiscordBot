@@ -35,14 +35,14 @@ let selectedMembers = [];
 client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
-  // Schedule #1 – 12:41 AM EDT (4:41 AM UTC) – asking about 5 AM wash
+  // Schedule #1 – 1 AM EDT (5 AM UTC) – asking about 5 AM wash
   schedule.scheduleJob("0 5 * * *", () => {
-    sendWashMessage("5 AM EST");
+    sendWashMessage("5 AM");
   });
 
-  // Schedule #2 – 12:41 PM EDT (4:41 PM UTC) – asking about 3 PM wash
+  // Schedule #2 – 1 PM EDT (5 PM UTC) – asking about 3 PM wash
   schedule.scheduleJob("0 17 * * *", () => {
-    sendWashMessage("3 PM EST");
+    sendWashMessage("3 PM");
   });
 });
 
@@ -89,7 +89,8 @@ function sendWashMessage(timeSlot) {
 
   // If everyone has been selected, reset the selectedMembers array
   if (availableMembers.length === 0) {
-    selectedMembers = [];
+    console.log("All members have been selected, resetting...");
+    selectedMembers = []; // Reset the cycle
   }
 
   // Randomly pick the member for this round

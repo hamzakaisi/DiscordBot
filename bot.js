@@ -1,5 +1,3 @@
-// Gang Washing Discord Bot with Scheduled Messages, Buttons, Partial Wash Handling, and !queue Command
-
 const { Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events } = require("discord.js");
 const schedule = require("node-schedule");
 const express = require("express");
@@ -43,22 +41,18 @@ let washingMessage = null;
 client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
-  // Schedule messages at 2:37 AM and 2:37 PM EDT (6:37 UTC and 18:37 UTC)
-  schedule.scheduleJob("45 13 * * *", () => {
-    startWashingCycle("5:00 AM");
+  // Schedule messages at 9:50 AM and 9:50 PM EDT (13:50 UTC and 01:50 UTC)
+  schedule.scheduleJob("50 13 * * *", () => {
+    startWashingCycle("9:50 AM");
   });
 
-  schedule.scheduleJob("45 1 * * *", () => {
-    startWashingCycle("3:00 PM");
+  schedule.scheduleJob("50 1 * * *", () => {
+    startWashingCycle("9:50 PM");
   });
 });
 
 client.on("messageCreate", async (message) => {
-  if (message.content.toLowerCase() === "!test") {
-    startWashingCycle("Test Run");
-    message.channel.send("🧪 Test started.");
-  }
-
+  // Command to show queue
   if (message.content.toLowerCase() === "!queue") {
     const remaining = gangMembers.filter((member) => !selectedMembers.includes(member));
     const response = `🧼 **Gang Washing Queue** 🧼\n\n` +
@@ -67,25 +61,27 @@ client.on("messageCreate", async (message) => {
     message.channel.send(response);
   }
 
+  // Command to reset the queue (admin only)
   if (message.content.toLowerCase() === "!reset" && message.member.permissions.has("Administrator")) {
     selectedMembers = [];
     message.channel.send("🔄 Washing queue has been reset!");
   }
 
+  // Command to mark a member as washed and move them to the selected list (admin only)
   if (message.content.toLowerCase().startsWith("!washed") && message.member.permissions.has("Administrator")) {
-    // Remove member from the list if they are mentioned
-    const mentionedUser = message.mentions.users.first();
-    if (!mentionedUser) {
-      message.channel.send("❌ Please mention a valid user to remove from the wash cycle.");
-      return;
+    const member = message.mentions.members.first();
+    if (!member) {
+      return message.channel.send("⚠️ Please mention a valid member.");
     }
-
-    const mentionedMember = `<@${mentionedUser.id}>`;
-    if (selectedMembers.includes(mentionedMember)) {
-      selectedMembers = selectedMembers.filter(member => member !== mentionedMember);
-      message.channel.send(`✅ ${mentionedMember} has been removed from the wash cycle.`);
+    
+    const memberId = `<@${member.id}>`;
+    
+    // If they're not already in the selected list, add them
+    if (!selectedMembers.includes(memberId)) {
+      selectedMembers.push(memberId);
+      message.channel.send(`✅ ${memberId} has been moved to the selected list for washing.`);
     } else {
-      message.channel.send("❌ This user is not currently in the wash cycle.");
+      message.channel.send(`⚠️ ${memberId} is already in the selected list.`);
     }
   }
 });

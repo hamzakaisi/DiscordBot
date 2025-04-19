@@ -35,19 +35,18 @@ const gangMembers = [
 let selectedMembers = [];
 let currentWashingAmount = 0;
 let currentRequiredAmount = 1500000;
-let currentHelpers = [];
 let washingMessage = null;
 
 client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
-  // Schedule messages at 10:05 AM and 10:05 PM EDT (14:05 UTC and 22:05 UTC)
-  schedule.scheduleJob("5 14 * * *", () => {
-    startWashingCycle("03:00 PM");
+  // Schedule messages at 10:10 AM and 10:10 PM EDT (14:10 UTC)
+  schedule.scheduleJob("10 14 * * *", () => {
+    startWashingCycle("10:10 AM");
   });
 
-  schedule.scheduleJob("5 22 * * *", () => {
-    startWashingCycle("05:00 AM");
+  schedule.scheduleJob("10 2 * * *", () => {
+    startWashingCycle("10:10 PM");
   });
 });
 
@@ -65,34 +64,21 @@ client.on("messageCreate", async (message) => {
     message.channel.send(response);
   }
 
-  if (message.content.toLowerCase() === "!reset" && message.member.permissions.has("Administrator")) {
-    selectedMembers = [];
-    message.channel.send("🔄 Washing queue has been reset!");
-  }
-
-  if (message.content.toLowerCase().startsWith("!washed") && message.member.permissions.has("Administrator")) {
-    const member = message.mentions.members.first();
-    if (!member) {
-      return message.channel.send("⚠️ Please mention a valid member.");
+  if (message.content.toLowerCase().startsWith("!washed")) {
+    if (!message.member.permissions.has("Administrator")) {
+      return message.channel.send("❌ You do not have permission to use this command.");
     }
-
-    const memberId = `<@${member.id}>`;
-
-    // Check if the member is in the eligible list
-    const index = gangMembers.indexOf(memberId);
-    if (index === -1 || selectedMembers.includes(memberId)) {
-      return message.channel.send(`⚠️ ${memberId} is not currently in the wash cycle.`);
+    const target = message.content.split(" ")[1];
+    if (!target || !gangMembers.includes(target)) {
+      return message.channel.send("❌ Invalid member.");
     }
-
-    // Add the member to the selectedMembers list
-    selectedMembers.push(memberId);
-    message.channel.send(`✅ ${memberId} has been added to the selected list!`);
-
-    // Update the queue with the new selected list
-    const remaining = gangMembers.filter((member) => !selectedMembers.includes(member));
-    message.channel.send(`🧼 **Gang Washing Queue** 🧼\n\n` +
-      `**Selected so far:**\n${selectedMembers.join("\n")}\n\n` +
-      `**Still eligible:**\n${remaining.length > 0 ? remaining.join("\n") : "All have been selected. Queue will reset soon!"}`);
+    const memberIndex = selectedMembers.indexOf(target);
+    if (memberIndex !== -1) {
+      selectedMembers.splice(memberIndex, 1);
+      message.channel.send(`⚠️ ${target} has been removed from the wash cycle.`);
+    } else {
+      message.channel.send(`⚠️ ${target} is not in the wash cycle.`);
+    }
   }
 });
 
@@ -129,7 +115,6 @@ function startWashingCycle(timeSlot) {
   selectedMembers.push(selected);
 
   currentWashingAmount = 0;
-  currentHelpers = [];
   currentRequiredAmount = 1500000;
 
   const buttons = new ActionRowBuilder().addComponents(
@@ -153,7 +138,7 @@ function askForMore() {
 
 function resetWashCycle() {
   currentWashingAmount = 0;
-  currentHelpers = [];
+  selectedMembers = [];
   washingMessage = null;
 }
 

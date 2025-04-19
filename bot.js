@@ -41,13 +41,13 @@ let washingMessage = null;
 client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
-  // Schedule messages at 9:50 AM and 9:50 PM EDT (13:50 UTC and 21:50 UTC)
-  schedule.scheduleJob("00 14 * * *", () => {
-    startWashingCycle("3:00 PM");
+  // Schedule messages at 10:05 AM and 10:05 PM EDT (14:05 UTC and 22:05 UTC)
+  schedule.scheduleJob("5 14 * * *", () => {
+    startWashingCycle("03:00 PM");
   });
 
-  schedule.scheduleJob("00 22 * * *", () => {
-    startWashingCycle("5:00 PM");
+  schedule.scheduleJob("5 22 * * *", () => {
+    startWashingCycle("05:00 AM");
   });
 });
 
@@ -78,14 +78,21 @@ client.on("messageCreate", async (message) => {
 
     const memberId = `<@${member.id}>`;
 
-    // Check if the member is in the selected list, remove from selectedMembers if they are
-    const index = selectedMembers.indexOf(memberId);
-    if (index !== -1) {
-      selectedMembers.splice(index, 1); // Remove from the selected list
-      message.channel.send(`✅ ${memberId} has been removed from the current cycle and will not be mentioned this cycle.`);
-    } else {
-      message.channel.send(`⚠️ ${memberId} is not currently in the wash cycle.`);
+    // Check if the member is in the eligible list
+    const index = gangMembers.indexOf(memberId);
+    if (index === -1 || selectedMembers.includes(memberId)) {
+      return message.channel.send(`⚠️ ${memberId} is not currently in the wash cycle.`);
     }
+
+    // Add the member to the selectedMembers list
+    selectedMembers.push(memberId);
+    message.channel.send(`✅ ${memberId} has been added to the selected list!`);
+
+    // Update the queue with the new selected list
+    const remaining = gangMembers.filter((member) => !selectedMembers.includes(member));
+    message.channel.send(`🧼 **Gang Washing Queue** 🧼\n\n` +
+      `**Selected so far:**\n${selectedMembers.join("\n")}\n\n` +
+      `**Still eligible:**\n${remaining.length > 0 ? remaining.join("\n") : "All have been selected. Queue will reset soon!"}`);
   }
 });
 

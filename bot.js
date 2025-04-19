@@ -3,10 +3,10 @@ const schedule = require("node-schedule");
 const express = require("express");
 require("dotenv").config();
 
-// Setup Express to keep the app alive
+// Express keepalive
 const app = express();
-app.get("/", (req, res) => res.send("Gang Wash Bot is alive!"));
-app.listen(3000, () => console.log("🌐 Web server running..."));
+app.get("/", (req, res) => res.send("Gang Wash Bot is online!"));
+app.listen(3000, () => console.log("🌐 Express server started"));
 
 const client = new Client({
   intents: [
@@ -27,7 +27,7 @@ const gangMembers = [
   "<@179998633092055041>", // Frank
   "<@652927651652042793>", // Loaded
   "<@700778810580402197>", // Maki
-  "<@239122621961076737>", // OG Shariff
+  "<@239122621961076737>", // OG Sharif
   "<@540417434457341972>", // Rico
   "<@192847925032779776>"  // Throck
 ];
@@ -40,45 +40,58 @@ let washingMessage = null;
 client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
-  // Schedule messages at 10:10 AM and 10:10 PM EDT (14:10 UTC)
-  schedule.scheduleJob("10 14 * * *", () => {
-    startWashingCycle("10:10 AM");
-  });
-
-  schedule.scheduleJob("10 2 * * *", () => {
-    startWashingCycle("10:10 PM");
-  });
+  // ⏰ Schedule for 10:10 AM EDT (14:10 UTC)
+  schedule.scheduleJob("10 14 * * *", () => startWashingCycle("10:10 AM"));
+  // ⏰ Schedule for 10:10 PM EDT (2:10 UTC next day)
+  schedule.scheduleJob("10 2 * * *", () => startWashingCycle("10:10 PM"));
 });
 
 client.on("messageCreate", async (message) => {
-  if (message.content.toLowerCase() === "!test") {
+  const content = message.content.toLowerCase();
+
+  if (content === "!test") {
     startWashingCycle("Test Run");
     message.channel.send("🧪 Test started.");
   }
 
-  if (message.content.toLowerCase() === "!queue") {
-    const remaining = gangMembers.filter((member) => !selectedMembers.includes(member));
-    const response = `🧼 **Gang Washing Queue** 🧼\n\n` +
+  if (content === "!queue") {
+    const remaining = gangMembers.filter((m) => !selectedMembers.includes(m));
+    const response =
+      `🧼 **Gang Washing Queue** 🧼\n\n` +
       `**Selected so far:**\n${selectedMembers.length > 0 ? selectedMembers.join("\n") : "None"}\n\n` +
       `**Still eligible:**\n${remaining.length > 0 ? remaining.join("\n") : "All have been selected. Queue will reset soon!"}`;
     message.channel.send(response);
   }
 
-  if (message.content.toLowerCase().startsWith("!washed")) {
+  if (content.startsWith("!washed")) {
     if (!message.member.permissions.has("Administrator")) {
       return message.channel.send("❌ You do not have permission to use this command.");
     }
-    const target = message.content.split(" ")[1];
-    if (!target || !gangMembers.includes(target)) {
-      return message.channel.send("❌ Invalid member.");
-    }
-    const memberIndex = selectedMembers.indexOf(target);
-    if (memberIndex !== -1) {
-      selectedMembers.splice(memberIndex, 1);
-      message.channel.send(`⚠️ ${target} has been removed from the wash cycle.`);
+    const target = message.mentions.users.first();
+    if (!target) return message.channel.send("❌ Please mention a user.");
+    const targetMention = `<@${target.id}>`;
+
+    if (gangMembers.includes(targetMention)) {
+      if (!selectedMembers.includes(targetMention)) {
+        selectedMembers.push(targetMention);
+        return message.channel.send(`✅ ${targetMention} has been marked as washed and added to the selected list.`);
+      } else {
+        return message.channel.send(`⚠️ ${targetMention} is already in the selected list.`);
+      }
     } else {
-      message.channel.send(`⚠️ ${target} is not in the wash cycle.`);
+      return message.channel.send("❌ This user is not in the gang wash cycle.");
     }
+  }
+
+  if (content === "!reset") {
+    if (!message.member.permissions.has("Administrator")) {
+      return message.channel.send("❌ You do not have permission to use this command.");
+    }
+    selectedMembers = [];
+    currentWashingAmount = 0;
+    currentRequiredAmount = 1500000;
+    washingMessage = null;
+    message.channel.send("🔁 Gang wash cycle has been reset.");
   }
 });
 
@@ -88,7 +101,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   const userId = `<@${interaction.user.id}>`;
 
   if (interaction.customId === "yes") {
-    const amount = 500000; // You can customize to ask how much with modals or input
+    const amount = 500000;
     currentWashingAmount += amount;
     if (!selectedMembers.includes(userId)) selectedMembers.push(userId);
 
@@ -100,7 +113,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       resetWashCycle();
     }
   } else if (interaction.customId === "no") {
-    await interaction.reply(`${userId} can't wash. Trying another member...`);
+    await interaction.reply(`${userId} can't wash. Picking someone else...`);
     startWashingCycle("Retry");
   }
 });
@@ -110,10 +123,13 @@ function startWashingCycle(timeSlot) {
   if (!channel) return console.error("Channel not found.");
 
   const available = gangMembers.filter((m) => !selectedMembers.includes(m));
-  if (available.length === 0) selectedMembers = available;
+  if (available.length === 0) {
+    selectedMembers = [];
+    return channel.send("✅ All members have been cycled through. Queue has been reset.");
+  }
+
   const selected = available[Math.floor(Math.random() * available.length)];
   selectedMembers.push(selected);
-
   currentWashingAmount = 0;
   currentRequiredAmount = 1500000;
 
@@ -128,17 +144,20 @@ function startWashingCycle(timeSlot) {
 
 function askForMore() {
   const channel = client.channels.cache.get("1358603838915088595");
+  if (!channel) return;
+
   const buttons = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("yes").setLabel("I'll Wash the Rest").setStyle(ButtonStyle.Primary)
   );
 
-  const content = `💰 Still need $${(currentRequiredAmount - currentWashingAmount).toLocaleString()} to be washed!\nWho can help finish it?`;
+  const content = `💰 Still need $${(currentRequiredAmount - currentWashingAmount).toLocaleString()}!\nWho can help finish it?`;
   channel.send({ content, components: [buttons] });
 }
 
 function resetWashCycle() {
-  currentWashingAmount = 0;
   selectedMembers = [];
+  currentWashingAmount = 0;
+  currentRequiredAmount = 1500000;
   washingMessage = null;
 }
 

@@ -41,9 +41,9 @@ client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
   // ⏰ Schedule for 10:10 AM EDT (14:10 UTC)
-  schedule.scheduleJob("10 14 * * *", () => startWashingCycle("10:10 AM"));
+  schedule.scheduleJob("25 14 * * *", () => startWashingCycle("3 PM"));
   // ⏰ Schedule for 10:10 PM EDT (2:10 UTC next day)
-  schedule.scheduleJob("10 2 * * *", () => startWashingCycle("10:10 PM"));
+  schedule.scheduleJob("25 2 * * *", () => startWashingCycle("5 AM"));
 });
 
 client.on("messageCreate", async (message) => {

@@ -1,121 +1,119 @@
-const { Client, GatewayIntentBits, PermissionsBitField } = require("discord.js");
+const { Client, GatewayIntentBits } = require("discord.js");
 const schedule = require("node-schedule");
 const express = require("express");
 
-// Setup express (optional for uptime)
 const app = express();
 app.get("/", (req, res) => res.send("Gang Wash Bot is alive!"));
 app.listen(3000, () => console.log("🌐 Web server running..."));
 
-// Initialize the bot
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.MessageContent,
   ],
 });
 
-// Gang members (Mention format)
+// Replace with actual user mentions
 const gangMembers = [
-  "<@222153000284717058>", //Connor
-  "<@364841539626598414>", //Frenchie
-  "<@192553728031719424>", //Moe
-  "<@1087868902895255562>", //Tak
-  "<@580483960413618188>", //Andreas
-  "<@901862634532515860>", //Ernie
-  "<@179998633092055041>", //Frank
-  "<@652927651652042793>", //Loaded
-  "<@700778810580402197>", //Maki
-  "<@239122621961076737>", //OG Shariff
-  "<@540417434457341972>", //Rico
-  "<@192847925032779776>", //Throck
+  "<@222153000284717058>", // Connor
+  "<@364841539626598414>", // Frenchie
+  "<@192553728031719424>", // Moe
+  "<@1087868902895255562>", // Tak
+  "<@580483960413618188>", // Andreas
+  "<@901862634532515860>", // Ernie
+  "<@179998633092055041>", // Frank
+  "<@652927651652042793>", // Loaded
+  "<@700778810580402197>", // Maki
+  "<@239122621961076737>", // OG Shariff
+  "<@540417434457341972>", // Rico
+  "<@192847925032779776>", // Throck
 ];
 
 let selectedMembers = [];
-let currentSelectedMember = null; // for tracking replies
+let currentMember = null;
+const washChannelId = "1358603838915088595"; // Replace with your channel ID
 
 client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
-  // 1 AM EDT = 5 AM UTC
+  // 2:37 AM EDT (6:37 UTC)
   schedule.scheduleJob("37 6 * * *", () => {
-    sendWashMessage("5 AM");
+    sendWashMessage("3 AM");
   });
 
-  // 1 PM EDT = 17 UTC
+  // 2:37 PM EDT (18:37 UTC)
   schedule.scheduleJob("37 18 * * *", () => {
     sendWashMessage("3 PM");
   });
 });
 
-client.on("messageCreate", async (message) => {
+client.on("messageCreate", (message) => {
   if (message.author.bot) return;
 
-  const content = message.content.toLowerCase();
+  console.log(`Received message from ${message.author.tag}: "${message.content}"`);
 
-  // !test to manually trigger
-  if (content === "!test") {
-    sendWashMessage("Test");
-    return message.channel.send("🧪 Test message sent!");
+  // Test command
+  if (message.content.toLowerCase() === "!test") {
+    sendWashMessage("3 AM");
+    message.channel.send("💸 Test message sent!");
   }
 
-  // !reset (admin only)
-  if (content === "!reset") {
-    const member = await message.guild.members.fetch(message.author.id);
-    if (member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-      selectedMembers = [];
-      currentSelectedMember = null;
-      console.log("🔁 Gang wash cycle reset by admin.");
-      return message.channel.send("♻️ Cycle reset. All members are eligible again.");
-    } else {
-      return message.reply("🚫 Only admins can use this command.");
-    }
+  // Show queue
+  if (message.content.toLowerCase() === "!queue") {
+    const remaining = gangMembers.filter(m => !selectedMembers.includes(m));
+    message.channel.send(
+      `🧼 **Wash Queue** 🧼\n\n**Selected:**\n${selectedMembers.join("\n") || "None yet"}\n\n**Remaining:**\n${remaining.join("\n") || "All done!"}`
+    );
   }
 
-  // Yes/No response handling
-  if (currentSelectedMember && message.author.toString() === currentSelectedMember) {
-    if (content === "yes") {
-      message.channel.send(`${message.author.tag} will wash today! 💸`);
-      currentSelectedMember = null;
-    } else if (content === "no") {
-      message.channel.send(`${message.author.tag} said no. Trying someone else...`);
-      currentSelectedMember = null;
-      sendWashMessage("Retry");
+  // Admin-only reset
+  if (message.content.toLowerCase() === "!reset") {
+    if (!message.member.permissions.has("Administrator")) {
+      return message.reply("❌ You don't have permission to reset.");
     }
+    selectedMembers = [];
+    currentMember = null;
+    message.channel.send("🔄 The gang washing cycle has been reset!");
+  }
+
+  // Handle yes/no responses
+  if (currentMember && message.content.toLowerCase() === "no" && message.mentions.has(client.user)) {
+    message.channel.send(`${message.author.tag} said no. Trying another member...`);
+    sendWashMessage("Retry");
+  }
+
+  if (currentMember && message.content.toLowerCase() === "yes" && message.mentions.has(client.user)) {
+    message.channel.send(`${message.author.tag} will wash today! 💸`);
+    currentMember = null;
   }
 });
 
-// Sends the washing message
+// Sends the wash message
 function sendWashMessage(timeSlot) {
-  const channel = client.channels.cache.get("1358603838915088595"); // Replace with your channel ID
+  const channel = client.channels.cache.get(washChannelId);
 
   if (!channel) {
     console.error("❌ Channel not found.");
     return;
   }
 
-  const availableMembers = gangMembers.filter(
-    (member) => !selectedMembers.includes(member)
-  );
+  const availableMembers = gangMembers.filter((member) => !selectedMembers.includes(member));
 
   if (availableMembers.length === 0) {
     selectedMembers = [];
+    channel.send("♻️ Everyone has had a turn! The cycle has been reset.");
+    return sendWashMessage(timeSlot); // Start new round
   }
 
-  const finalPool = gangMembers.filter(
-    (member) => !selectedMembers.includes(member)
-  );
-
-  const randomIndex = Math.floor(Math.random() * finalPool.length);
-  const selectedMember = finalPool[randomIndex];
+  const randomIndex = Math.floor(Math.random() * availableMembers.length);
+  const selectedMember = availableMembers[randomIndex];
   selectedMembers.push(selectedMember);
-  currentSelectedMember = selectedMember;
+  currentMember = selectedMember;
 
-  const message = `💸 **Gang Washing Turn** 💸\n\n🧼 Will you wash **1.5 million at ${timeSlot}**?\n\n${selectedMember}, reply with **yes** or **no**.`;
-
-  channel.send(message);
+  channel.send(
+    `💸 **Gang Washing Turn** 💸\n\n🧼 **Will you wash today?**\n\nHey ${selectedMember}, will you wash 1.5 million at ${timeSlot}? Tag me and reply with **yes** or **no**.`
+  );
 }
 
-const token = process.env.token;
-client.login(token);
+client.login(process.env.token);

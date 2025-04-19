@@ -42,12 +42,12 @@ client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
   // Schedule messages at 9:50 AM and 9:50 PM EDT (13:50 UTC and 01:50 UTC)
-  schedule.scheduleJob("50 13 * * *", () => {
-    startWashingCycle("9:50 AM");
+  schedule.scheduleJob("00 14 * * *", () => {
+    startWashingCycle("3:00 PM");
   });
 
-  schedule.scheduleJob("50 1 * * *", () => {
-    startWashingCycle("9:50 PM");
+  schedule.scheduleJob("00 2 * * *", () => {
+    startWashingCycle("5:00 AM");
   });
 });
 

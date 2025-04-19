@@ -25,8 +25,8 @@ let washingState = null; // Holds data for ongoing wash
 client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
-  schedule.scheduleJob("37 2 * * *", () => sendWashMessage("2:37 AM"));
-  schedule.scheduleJob("37 14 * * *", () => sendWashMessage("2:37 PM"));
+  schedule.scheduleJob("30 13 * * *", () => sendWashMessage("5:00 AM"));
+  schedule.scheduleJob("30 1 * * *", () => sendWashMessage("3:00 PM"));
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {

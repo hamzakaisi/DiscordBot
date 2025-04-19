@@ -41,18 +41,22 @@ let washingMessage = null;
 client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
-  // Schedule messages at 9:50 AM and 9:50 PM EDT (13:50 UTC and 01:50 UTC)
+  // Schedule messages at 9:50 AM and 9:50 PM EDT (13:50 UTC and 21:50 UTC)
   schedule.scheduleJob("00 14 * * *", () => {
     startWashingCycle("3:00 PM");
   });
 
-  schedule.scheduleJob("00 2 * * *", () => {
-    startWashingCycle("5:00 AM");
+  schedule.scheduleJob("00 22 * * *", () => {
+    startWashingCycle("5:00 PM");
   });
 });
 
 client.on("messageCreate", async (message) => {
-  // Command to show queue
+  if (message.content.toLowerCase() === "!test") {
+    startWashingCycle("Test Run");
+    message.channel.send("🧪 Test started.");
+  }
+
   if (message.content.toLowerCase() === "!queue") {
     const remaining = gangMembers.filter((member) => !selectedMembers.includes(member));
     const response = `🧼 **Gang Washing Queue** 🧼\n\n` +
@@ -61,27 +65,26 @@ client.on("messageCreate", async (message) => {
     message.channel.send(response);
   }
 
-  // Command to reset the queue (admin only)
   if (message.content.toLowerCase() === "!reset" && message.member.permissions.has("Administrator")) {
     selectedMembers = [];
     message.channel.send("🔄 Washing queue has been reset!");
   }
 
-  // Command to mark a member as washed and move them to the selected list (admin only)
   if (message.content.toLowerCase().startsWith("!washed") && message.member.permissions.has("Administrator")) {
     const member = message.mentions.members.first();
     if (!member) {
       return message.channel.send("⚠️ Please mention a valid member.");
     }
-    
+
     const memberId = `<@${member.id}>`;
-    
-    // If they're not already in the selected list, add them
-    if (!selectedMembers.includes(memberId)) {
-      selectedMembers.push(memberId);
-      message.channel.send(`✅ ${memberId} has been moved to the selected list for washing.`);
+
+    // Check if the member is in the selected list, remove from selectedMembers if they are
+    const index = selectedMembers.indexOf(memberId);
+    if (index !== -1) {
+      selectedMembers.splice(index, 1); // Remove from the selected list
+      message.channel.send(`✅ ${memberId} has been removed from the current cycle and will not be mentioned this cycle.`);
     } else {
-      message.channel.send(`⚠️ ${memberId} is already in the selected list.`);
+      message.channel.send(`⚠️ ${memberId} is not currently in the wash cycle.`);
     }
   }
 });

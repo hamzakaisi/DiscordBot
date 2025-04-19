@@ -44,11 +44,11 @@ client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
   // Schedule messages at 2:37 AM and 2:37 PM EDT (6:37 UTC and 18:37 UTC)
-  schedule.scheduleJob("40 13 * * *", () => {
+  schedule.scheduleJob("45 13 * * *", () => {
     startWashingCycle("2:37 AM");
   });
 
-  schedule.scheduleJob("40 1 * * *", () => {
+  schedule.scheduleJob("45 1 * * *", () => {
     startWashingCycle("2:37 PM");
   });
 });
@@ -70,6 +70,23 @@ client.on("messageCreate", async (message) => {
   if (message.content.toLowerCase() === "!reset" && message.member.permissions.has("Administrator")) {
     selectedMembers = [];
     message.channel.send("🔄 Washing queue has been reset!");
+  }
+
+  if (message.content.toLowerCase().startsWith("!washed") && message.member.permissions.has("Administrator")) {
+    // Remove member from the list if they are mentioned
+    const mentionedUser = message.mentions.users.first();
+    if (!mentionedUser) {
+      message.channel.send("❌ Please mention a valid user to remove from the wash cycle.");
+      return;
+    }
+
+    const mentionedMember = `<@${mentionedUser.id}>`;
+    if (selectedMembers.includes(mentionedMember)) {
+      selectedMembers = selectedMembers.filter(member => member !== mentionedMember);
+      message.channel.send(`✅ ${mentionedMember} has been removed from the wash cycle.`);
+    } else {
+      message.channel.send("❌ This user is not currently in the wash cycle.");
+    }
   }
 });
 

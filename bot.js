@@ -1,22 +1,15 @@
-// Gang Washing Discord Bot with Scheduled Messages, Buttons, Partial Wash Handling, and Dynamic Amount Input
-
 const { Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, ModalBuilder, TextInputBuilder, TextInputStyle } = require("discord.js");
 const schedule = require("node-schedule");
 const express = require("express");
 require("dotenv").config();
 
-// Setup Express to keep the app alive
 const app = express();
 app.get("/", (req, res) => res.send("Gang Wash Bot is alive!"));
 app.listen(3000, () => console.log("🌐 Web server running..."));
 
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-  ],
-  partials: [Partials.Message, Partials.Channel, Partials.Reaction],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
 
 const gangMembers = [
@@ -31,19 +24,21 @@ const gangMembers = [
   "<@700778810580402197>", // Maki
   "<@239122621961076737>", // OG Shariff
   "<@540417434457341972>", // Rico
-  "<@192847925032779776>", // Throck
+  "<@192847925032779776>"  // Throck
 ];
 
 let selectedMembers = [];
 let currentWashingAmount = 0;
 let currentRequiredAmount = 1500000;
+let currentHelpers = [];
 let washingMessage = null;
 
 client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
-  schedule.scheduleJob("10 14 * * *", () => startWashingCycle("3:00 PM")); // 10:10 AM EDT
-  schedule.scheduleJob("10 2 * * *", () => startWashingCycle("5:00 AM")); // 10:10 PM EDT
+  // Schedule: 10:10 AM EDT → 14:10 UTC | 10:10 PM EDT → 02:10 UTC
+  schedule.scheduleJob("10 14 * * *", () => startWashingCycle("3 PM"));
+  schedule.scheduleJob("10 2 * * *", () => startWashingCycle("5 AM"));
 });
 
 client.on("messageCreate", async (message) => {
@@ -60,12 +55,19 @@ client.on("messageCreate", async (message) => {
     message.channel.send(response);
   }
 
-  if (message.content.toLowerCase().startsWith("!washed")) {
-    const match = message.content.match(/<@!?(\d+)>/);
-    if (!match) return message.reply("❌ Please mention a user to mark as washed.");
-    const userId = `<@${match[1]}>`;
-    if (!selectedMembers.includes(userId)) selectedMembers.push(userId);
-    message.reply(`✅ ${userId} has been manually added to the selected list.`);
+  if (message.content.toLowerCase().startsWith("!washed") && message.member.permissions.has("Administrator")) {
+    const mention = message.mentions.members.first();
+    if (!mention) return message.reply("❌ Please mention someone.");
+
+    const idTag = `<@${mention.id}>`;
+    if (!gangMembers.includes(idTag)) return message.reply("❌ This user is not in the gang list.");
+
+    if (!selectedMembers.includes(idTag)) {
+      selectedMembers.push(idTag);
+      return message.reply(`✅ ${idTag} was marked as already washed this cycle.`);
+    } else {
+      return message.reply(`ℹ️ ${idTag} is already in the selected list.`);
+    }
   }
 
   if (message.content.toLowerCase() === "!reset" && message.member.permissions.has("Administrator")) {
@@ -75,83 +77,96 @@ client.on("messageCreate", async (message) => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  const userId = `<@${interaction.user.id}>`;
+
   if (interaction.isButton()) {
-    const userId = `<@${interaction.user.id}>`;
-
-    if (interaction.customId === "yes") {
-      const modal = new ModalBuilder()
-        .setCustomId("amount_modal")
-        .setTitle("How Much Will You Wash?");
-
-      const input = new TextInputBuilder()
-        .setCustomId("wash_amount")
-        .setLabel("Enter amount (e.g., 700000)")
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true);
-
-      modal.addComponents(new ActionRowBuilder().addComponents(input));
-      await interaction.showModal(modal);
-    } else if (interaction.customId === "no") {
-      await interaction.reply({ content: `${userId} can't wash. Trying someone else...`, ephemeral: true });
-      startWashingCycle("Retry");
-    }
-  } else if (interaction.isModalSubmit()) {
-    if (interaction.customId === "amount_modal") {
-      const userId = `<@${interaction.user.id}>`;
-      const input = interaction.fields.getTextInputValue("wash_amount");
-      const amount = parseInt(input);
-      if (isNaN(amount) || amount <= 0) {
-        return interaction.reply({ content: "❌ Invalid amount entered.", ephemeral: true });
-      }
-
-      currentWashingAmount += amount;
+    if (interaction.customId === "yes_full") {
       if (!selectedMembers.includes(userId)) selectedMembers.push(userId);
+      currentWashingAmount = currentRequiredAmount;
+      await interaction.reply(`✅ ${userId} will wash the full amount! No more help needed.`);
+      resetWashCycle();
+    } else if (interaction.customId === "no") {
+      await interaction.reply(`${userId} can't wash. Trying another member...`);
+      startWashingCycle("Retry");
+    } else if (interaction.customId === "partial") {
+      const modal = new ModalBuilder()
+        .setCustomId("partial_modal")
+        .setTitle("Partial Wash Amount")
+        .addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId("amount")
+              .setLabel("How much will you wash? (numbers only)")
+              .setStyle(TextInputStyle.Short)
+              .setPlaceholder("e.g. 700000")
+              .setRequired(true)
+          )
+        );
+      await interaction.showModal(modal);
+    }
+  }
 
-      if (currentWashingAmount < currentRequiredAmount) {
-        await interaction.reply(`${userId} is washing $${amount.toLocaleString()}. 💸 Still need $${(currentRequiredAmount - currentWashingAmount).toLocaleString()} more!`);
-        askForMore();
-      } else {
-        await interaction.reply(`✅ Washing fully covered! Total: $${currentWashingAmount.toLocaleString()}`);
-        resetWashCycle();
-      }
+  if (interaction.isModalSubmit() && interaction.customId === "partial_modal") {
+    const amount = parseInt(interaction.fields.getTextInputValue("amount"));
+    if (isNaN(amount) || amount <= 0) {
+      return interaction.reply({ content: "❌ Invalid amount.", ephemeral: true });
+    }
+
+    const userId = `<@${interaction.user.id}>`;
+    currentWashingAmount += amount;
+    if (!selectedMembers.includes(userId)) selectedMembers.push(userId);
+
+    if (currentWashingAmount < currentRequiredAmount) {
+      const remaining = currentRequiredAmount - currentWashingAmount;
+      await interaction.reply(`${userId} is washing $${amount.toLocaleString()}. Still need $${remaining.toLocaleString()} more!`);
+      askForMore(remaining);
+    } else {
+      await interaction.reply(`✅ Washing fully covered! Total: $${currentWashingAmount.toLocaleString()}`);
+      resetWashCycle();
     }
   }
 });
 
-function startWashingCycle(washTimeLabel) {
+function startWashingCycle(targetTime) {
   const channel = client.channels.cache.get("1358603838915088595"); // Replace with your channel ID
   if (!channel) return console.error("Channel not found.");
 
   const available = gangMembers.filter((m) => !selectedMembers.includes(m));
-  if (available.length === 0) selectedMembers = [], available.push(...gangMembers);
-  const selected = available[Math.floor(Math.random() * available.length)];
+  if (available.length === 0) {
+    selectedMembers = [];
+  }
+
+  const reFiltered = gangMembers.filter((m) => !selectedMembers.includes(m));
+  const selected = reFiltered[Math.floor(Math.random() * reFiltered.length)];
   selectedMembers.push(selected);
 
   currentWashingAmount = 0;
+  currentHelpers = [];
   currentRequiredAmount = 1500000;
 
   const buttons = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("yes").setLabel("Yes - I'll Wash").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId("no").setLabel("No").setStyle(ButtonStyle.Danger)
+    new ButtonBuilder().setCustomId("yes_full").setLabel("✅ Yes - I'll Wash Full Amount").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("partial").setLabel("🧮 Washing Not Full Amount").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("no").setLabel("❌ No").setStyle(ButtonStyle.Danger)
   );
 
-  const content = `💸 **Gang Washing Time** 💸\n\n${selected}, can you wash **$1.5M** for the **${washTimeLabel}** slot?\nClick below:`;
+  const content = `💸 **Gang Washing Time** 💸\n\n${selected}, can you wash **$1.5M** to be ready for **${targetTime}**?\nClick an option below:`;
   channel.send({ content, components: [buttons] }).then((msg) => (washingMessage = msg));
 }
 
-function askForMore() {
+function askForMore(remaining) {
   const channel = client.channels.cache.get("1358603838915088595");
-  if (!channel) return;
   const buttons = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("yes").setLabel("I'll Wash the Rest").setStyle(ButtonStyle.Primary)
+    new ButtonBuilder().setCustomId("partial").setLabel("I'll Wash Some").setStyle(ButtonStyle.Primary)
   );
 
-  const content = `💰 Still need $${(currentRequiredAmount - currentWashingAmount).toLocaleString()} to be washed!\nWho can help finish it?`;
+  const content = `💰 Still need $${remaining.toLocaleString()} to be washed.\nWho else can help? Click below:`;
   channel.send({ content, components: [buttons] });
 }
 
 function resetWashCycle() {
   currentWashingAmount = 0;
+  currentHelpers = [];
   washingMessage = null;
 }
 

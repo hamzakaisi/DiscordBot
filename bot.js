@@ -45,11 +45,11 @@ client.once("ready", () => {
 
   // Schedule messages at 2:37 AM and 2:37 PM EDT (6:37 UTC and 18:37 UTC)
   schedule.scheduleJob("45 13 * * *", () => {
-    startWashingCycle("2:37 AM");
+    startWashingCycle("5:00 AM");
   });
 
   schedule.scheduleJob("45 1 * * *", () => {
-    startWashingCycle("2:37 PM");
+    startWashingCycle("3:00 PM");
   });
 });
 

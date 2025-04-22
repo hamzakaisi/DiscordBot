@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, ModalBuilder, TextInputBuilder, TextInputStyle } = require("discord.js");
+const { Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder } = require("discord.js");
 const schedule = require("node-schedule");
 const express = require("express");
 require("dotenv").config();
@@ -36,23 +36,30 @@ let washingMessage = null;
 client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
-  // Schedule: 10:10 AM EDT → 14:10 UTC | 10:10 PM EDT → 02:10 UTC
-  schedule.scheduleJob("0 8 * * *", () => startWashingCycle("5 AM"));
-  schedule.scheduleJob("0 18 * * *", () => startWashingCycle("3 PM"));
+  schedule.scheduleJob("0 8 * * *", () => startWashingCycle("5 AM EDT", getTimestampInNextHour()));
+  schedule.scheduleJob("0 18 * * *", () => startWashingCycle("3 PM EDT", getTimestampInNextHour()));
 });
 
 client.on("messageCreate", async (message) => {
   if (message.content.toLowerCase() === "!test") {
-    startWashingCycle("Test Run");
+    startWashingCycle("Test Run", getTimestampInNextHour());
     message.channel.send("🧪 Test started.");
   }
 
   if (message.content.toLowerCase() === "!queue") {
     const remaining = gangMembers.filter((member) => !selectedMembers.includes(member));
-    const response = `🧼 **Gang Washing Queue** 🧼\n\n` +
-      `**Selected so far:**\n${selectedMembers.length > 0 ? selectedMembers.join("\n") : "None"}\n\n` +
-      `**Still eligible:**\n${remaining.length > 0 ? remaining.join("\n") : "All have been selected. Queue will reset soon!"}`;
-    message.channel.send(response);
+    const nextRestartTimestamp = getTimestampInNextHour();
+
+    const embed = new EmbedBuilder()
+      .setTitle("🧼 Gang Washing Queue 🧼")
+      .setColor(0x00bfff)
+      .addFields(
+        { name: "Selected so far", value: selectedMembers.length > 0 ? selectedMembers.join("\n") : "None", inline: true },
+        { name: "Still eligible", value: remaining.length > 0 ? remaining.join("\n") : "All have been selected. Queue will reset soon!", inline: true },
+        { name: "Next Restart", value: `<t:${nextRestartTimestamp}:F>\n(<t:${nextRestartTimestamp}:R>)`, inline: false }
+      );
+
+    message.channel.send({ embeds: [embed] });
   }
 
   if (message.content.toLowerCase().startsWith("!washed") && message.member.permissions.has("Administrator")) {
@@ -87,7 +94,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       resetWashCycle();
     } else if (interaction.customId === "no") {
       await interaction.reply(`${userId} can't wash. Trying another member...`);
-      startWashingCycle("Retry");
+      startWashingCycle("Retry", getTimestampInNextHour());
     } else if (interaction.customId === "partial") {
       const modal = new ModalBuilder()
         .setCustomId("partial_modal")
@@ -127,7 +134,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-function startWashingCycle(targetTime) {
+function startWashingCycle(targetTime, restartTimestamp) {
   const channel = client.channels.cache.get("1358603838915088595"); // Replace with your channel ID
   if (!channel) return console.error("Channel not found.");
 
@@ -150,8 +157,13 @@ function startWashingCycle(targetTime) {
     new ButtonBuilder().setCustomId("no").setLabel("❌ No").setStyle(ButtonStyle.Danger)
   );
 
-  const content = `💸 **Gang Washing Time** 💸\n\n${selected}, can you wash **$1.5M** to be ready for **${targetTime}**?\nClick an option below:`;
-  channel.send({ content, components: [buttons] }).then((msg) => (washingMessage = msg));
+  const embed = new EmbedBuilder()
+    .setTitle("💸 Gang Washing Time 💸")
+    .setDescription(`${selected}, can you wash **$1.5M** to be ready for **${targetTime}**?`)
+    .addFields({ name: "⏰ Restart is coming in the next hour", value: `<t:${restartTimestamp}:F>\n(<t:${restartTimestamp}:R>)` })
+    .setColor(0xffa500);
+
+  channel.send({ embeds: [embed], components: [buttons] }).then((msg) => (washingMessage = msg));
 }
 
 function askForMore(remaining) {
@@ -168,6 +180,11 @@ function resetWashCycle() {
   currentWashingAmount = 0;
   currentHelpers = [];
   washingMessage = null;
+}
+
+function getTimestampInNextHour() {
+  const date = new Date(Date.now() + 60 * 60 * 1000);
+  return Math.floor(date.getTime() / 1000);
 }
 
 client.login(process.env.token);

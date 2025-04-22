@@ -2,7 +2,7 @@ const { Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, Bu
 const schedule = require("node-schedule");
 const express = require("express");
 require("dotenv").config();
-const { DateTime } = require("luxon"); // Luxon for handling time and timezones
+const { DateTime } = require("luxon"); // Import Luxon for date handling
 
 const app = express();
 app.get("/", (req, res) => res.send("Gang Wash Bot is alive!"));
@@ -43,27 +43,27 @@ let washingMessage = null;
 client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
-  // Schedule washing cycle at 5 AM and 3 PM EDT
-  schedule.scheduleJob("0 8 * * *", () => startWashingCycle("5 AM EDT"));
-  schedule.scheduleJob("0 18 * * *", () => startWashingCycle("3 PM EDT"));
+  schedule.scheduleJob("0 8 * * *", () => startWashingCycle("5 AM EDT", getTimestampInNextHour()));
+  schedule.scheduleJob("0 18 * * *", () => startWashingCycle("3 PM EDT", getTimestampInNextHour()));
 });
 
 client.on("messageCreate", async (message) => {
   if (message.content.toLowerCase() === "!test") {
-    startWashingCycle("Test Run");
+    startWashingCycle("Test Run", getTimestampInNextHour());
     message.channel.send("🧪 Test started.");
   }
 
   if (message.content.toLowerCase() === "!queue") {
     const remaining = gangMembers.filter((member) => !selectedMembers.includes(member));
-    const nextRestart = getTimestampInNextHour(); // Get the timestamp details
+    const { formattedTime, relativeTime } = getTimestampInNextHour();
+
     const embed = new EmbedBuilder()
       .setTitle("🧼 Gang Washing Queue 🧼")
       .setColor(0x00bfff)
       .addFields(
         { name: "Selected so far", value: selectedMembers.length > 0 ? selectedMembers.join("\n") : "None", inline: true },
         { name: "Still eligible", value: remaining.length > 0 ? remaining.join("\n") : "All have been selected. Queue will reset soon!", inline: true },
-        { name: "Next Restart", value: `${nextRestart.formattedTime}\n(${nextRestart.relativeTime})`, inline: false }
+        { name: "Next Restart", value: `${formattedTime}\n(${relativeTime})`, inline: false }
       );
 
     message.channel.send({ embeds: [embed] });
@@ -101,7 +101,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       resetWashCycle();
     } else if (interaction.customId === "no") {
       await interaction.reply(`${userId} can't wash. Trying another member...`);
-      startWashingCycle("Retry");
+      startWashingCycle("Retry", getTimestampInNextHour());
     } else if (interaction.customId === "partial") {
       const modal = new ModalBuilder()
         .setCustomId("partial_modal")
@@ -141,7 +141,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-function startWashingCycle(targetTime) {
+function startWashingCycle(targetTime, { formattedTime, relativeTime }) {
   const channel = client.channels.cache.get("1358603838915088595"); // Replace with your channel ID
   if (!channel) return console.error("Channel not found.");
 
@@ -164,12 +164,10 @@ function startWashingCycle(targetTime) {
     new ButtonBuilder().setCustomId("no").setLabel("❌ No").setStyle(ButtonStyle.Danger)
   );
 
-  const nextRestart = getTimestampInNextHour();
-  
   const embed = new EmbedBuilder()
     .setTitle("💸 Gang Washing Time 💸")
     .setDescription(`${selected}, can you wash **$1.5M** to be ready for **${targetTime}**?`)
-    .addFields({ name: "⏰ Restart is coming in the next hour", value: `${nextRestart.formattedTime}\n(${nextRestart.relativeTime})` })
+    .addFields({ name: "⏰ Restart is coming in the next hour", value: `${formattedTime}\n(${relativeTime})` })
     .setColor(0xffa500);
 
   channel.send({ embeds: [embed], components: [buttons] }).then((msg) => (washingMessage = msg));
@@ -198,5 +196,10 @@ function getTimestampInNextHour() {
   
   const targetDateTime = now.set({ hour: targetTime, minute: 0, second: 0, millisecond: 0 }); // Set to next 5 AM or 3 PM
   
-  // Calculate the time remaining in hours and minutes
- 
+  const formattedTime = `<t:${Math.floor(targetDateTime.toSeconds())}:F>`; // Format the time for Discord
+  const relativeTime = `<t:${Math.floor(targetDateTime.toSeconds())}:R>`; // Format the relative time for Discord
+  
+  return { formattedTime, relativeTime };
+}
+
+client.login(process.env.token);

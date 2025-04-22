@@ -1,6 +1,7 @@
 const { Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder } = require("discord.js");
 const schedule = require("node-schedule");
 const express = require("express");
+const { DateTime } = require("luxon"); // Import Luxon
 require("dotenv").config();
 
 const app = express();
@@ -157,6 +158,8 @@ function startWashingCycle(targetTime, restartTimestamp) {
   currentHelpers = [];
   currentRequiredAmount = 1500000;
 
+  const { formattedTime, relativeTime, timeLeft } = getTimestampInNextHour();
+
   const buttons = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("yes_full").setLabel("✅ Yes - I'll Wash Full Amount").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId("partial").setLabel("🧮 Washing Not Full Amount").setStyle(ButtonStyle.Primary),
@@ -165,7 +168,7 @@ function startWashingCycle(targetTime, restartTimestamp) {
 
   const embed = new EmbedBuilder()
     .setTitle("💸 Gang Washing Time 💸")
-    .setDescription(`${selected}, can you wash **$1.5M** to be ready for **${targetTime}**?`)
+    .setDescription(`${selected}, can you wash **$1.5M** to be ready for **${formattedTime}**?\nTime left: **${timeLeft}**`)
     .addFields({ name: "⏰ Restart is coming in the next hour", value: `<t:${restartTimestamp}:F>\n(<t:${restartTimestamp}:R>)` })
     .setColor(0xffa500);
 
@@ -189,8 +192,18 @@ function resetWashCycle() {
 }
 
 function getTimestampInNextHour() {
-  const date = new Date(Date.now() + 60 * 60 * 1000);
-  return Math.floor(date.getTime() / 1000);
+  const now = DateTime.now().setZone("America/New_York"); // Adjust to EDT time zone
+  const targetTimes = [5, 15]; // 5 AM and 3 PM
+  const targetTime = targetTimes.find((hour) => hour > now.hour) || targetTimes[0];
+
+  const targetDateTime = now.set({ hour: targetTime, minute: 0, second: 0, millisecond: 0 });
+  const timeLeft = targetDateTime.diff(now, ['hours', 'minutes']).toObject(); // Get the time left in hours and minutes
+
+  return {
+    formattedTime: targetDateTime.toLocaleString(DateTime.DATETIME_MED), // formatted date
+    relativeTime: targetDateTime.toRelative(), // relative time (e.g., "in 3 hours")
+    timeLeft: `${Math.floor(timeLeft.hours)} hours and ${Math.floor(timeLeft.minutes)} minutes`, // time remaining
+  };
 }
 
 client.login(process.env.token);

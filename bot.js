@@ -1,8 +1,8 @@
 const { Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder } = require("discord.js");
 const schedule = require("node-schedule");
 const express = require("express");
-const { DateTime } = require("luxon"); // Import Luxon
 require("dotenv").config();
+const { DateTime } = require("luxon"); // Luxon for handling time and timezones
 
 const app = express();
 app.get("/", (req, res) => res.send("Gang Wash Bot is alive!"));
@@ -43,27 +43,27 @@ let washingMessage = null;
 client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
-  schedule.scheduleJob("0 8 * * *", () => startWashingCycle("5 AM EDT", getTimestampInNextHour()));
-  schedule.scheduleJob("0 18 * * *", () => startWashingCycle("3 PM EDT", getTimestampInNextHour()));
+  // Schedule washing cycle at 5 AM and 3 PM EDT
+  schedule.scheduleJob("0 8 * * *", () => startWashingCycle("5 AM EDT"));
+  schedule.scheduleJob("0 18 * * *", () => startWashingCycle("3 PM EDT"));
 });
 
 client.on("messageCreate", async (message) => {
   if (message.content.toLowerCase() === "!test") {
-    startWashingCycle("Test Run", getTimestampInNextHour());
+    startWashingCycle("Test Run");
     message.channel.send("🧪 Test started.");
   }
 
   if (message.content.toLowerCase() === "!queue") {
     const remaining = gangMembers.filter((member) => !selectedMembers.includes(member));
-    const nextRestartTimestamp = getTimestampInNextHour();
-
+    const nextRestart = getTimestampInNextHour(); // Get the timestamp details
     const embed = new EmbedBuilder()
       .setTitle("🧼 Gang Washing Queue 🧼")
       .setColor(0x00bfff)
       .addFields(
         { name: "Selected so far", value: selectedMembers.length > 0 ? selectedMembers.join("\n") : "None", inline: true },
         { name: "Still eligible", value: remaining.length > 0 ? remaining.join("\n") : "All have been selected. Queue will reset soon!", inline: true },
-        { name: "Next Restart", value: `<t:${nextRestartTimestamp}:F>\n(<t:${nextRestartTimestamp}:R>)`, inline: false }
+        { name: "Next Restart", value: `${nextRestart.formattedTime}\n(${nextRestart.relativeTime})`, inline: false }
       );
 
     message.channel.send({ embeds: [embed] });
@@ -101,7 +101,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       resetWashCycle();
     } else if (interaction.customId === "no") {
       await interaction.reply(`${userId} can't wash. Trying another member...`);
-      startWashingCycle("Retry", getTimestampInNextHour());
+      startWashingCycle("Retry");
     } else if (interaction.customId === "partial") {
       const modal = new ModalBuilder()
         .setCustomId("partial_modal")
@@ -141,7 +141,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-function startWashingCycle(targetTime, restartTimestamp) {
+function startWashingCycle(targetTime) {
   const channel = client.channels.cache.get("1358603838915088595"); // Replace with your channel ID
   if (!channel) return console.error("Channel not found.");
 
@@ -158,18 +158,18 @@ function startWashingCycle(targetTime, restartTimestamp) {
   currentHelpers = [];
   currentRequiredAmount = 1500000;
 
-  const { formattedTime, relativeTime, timeLeft } = getTimestampInNextHour();
-
   const buttons = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("yes_full").setLabel("✅ Yes - I'll Wash Full Amount").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId("partial").setLabel("🧮 Washing Not Full Amount").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("no").setLabel("❌ No").setStyle(ButtonStyle.Danger)
   );
 
+  const nextRestart = getTimestampInNextHour();
+  
   const embed = new EmbedBuilder()
     .setTitle("💸 Gang Washing Time 💸")
-    .setDescription(`${selected}, can you wash **$1.5M** to be ready for **${formattedTime}**?\nTime left: **${timeLeft}**`)
-    .addFields({ name: "⏰ Restart is coming in the next hour", value: `<t:${restartTimestamp}:F>\n(<t:${restartTimestamp}:R>)` })
+    .setDescription(`${selected}, can you wash **$1.5M** to be ready for **${targetTime}**?`)
+    .addFields({ name: "⏰ Restart is coming in the next hour", value: `${nextRestart.formattedTime}\n(${nextRestart.relativeTime})` })
     .setColor(0xffa500);
 
   channel.send({ embeds: [embed], components: [buttons] }).then((msg) => (washingMessage = msg));
@@ -199,14 +199,4 @@ function getTimestampInNextHour() {
   const targetDateTime = now.set({ hour: targetTime, minute: 0, second: 0, millisecond: 0 }); // Set to next 5 AM or 3 PM
   
   // Calculate the time remaining in hours and minutes
-  const timeLeft = targetDateTime.diff(now, ['hours', 'minutes']).toObject();
-  
-  return {
-    formattedTime: targetDateTime.toLocaleString(DateTime.DATETIME_MED), // Human-readable date-time format
-    relativeTime: targetDateTime.toRelative(), // Relative time (e.g., "in 3 hours")
-    timeLeft: `${Math.floor(timeLeft.hours)} hours and ${Math.floor(timeLeft.minutes)} minutes`, // Time remaining in hours and minutes
-  };
-}
-
-
-client.login(process.env.token);
+ 

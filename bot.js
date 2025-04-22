@@ -2,7 +2,7 @@ const { Client, GatewayIntentBits, Partials, ActionRowBuilder, ButtonBuilder, Bu
 const schedule = require("node-schedule");
 const express = require("express");
 require("dotenv").config();
-const { DateTime } = require("luxon"); // Import Luxon for date handling
+const { DateTime } = require("luxon");
 
 const app = express();
 app.get("/", (req, res) => res.send("Gang Wash Bot is alive!"));
@@ -26,12 +26,12 @@ const gangMembers = [
   "<@239122621961076737>", // OG Shariff
   "<@540417434457341972>", // Rico
   "<@192847925032779776>", // Throck
-  "<@939359906262290442>", //Jay wick
-  "<@120627926986260492>", //Viktor
-  "<@205039503532883968>", //Michael
-  "<@180539355495006209>", //Mahck 
-  "<@369945799351861254>", //Reji
-  "<@429420267970887691>" // Emilia
+  "<@939359906262290442>", // Jay wick
+  "<@120627926986260492>", // Viktor
+  "<@205039503532883968>", // Michael
+  "<@180539355495006209>", // Mahck 
+  "<@369945799351861254>", // Reji
+  "<@429420267970887691>"  // Emilia
 ];
 
 let selectedMembers = [];
@@ -43,13 +43,21 @@ let washingMessage = null;
 client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
-  schedule.scheduleJob("0 8 * * *", () => startWashingCycle("5 AM EDT", getTimestampInNextHour()));
-  schedule.scheduleJob("0 18 * * *", () => startWashingCycle("3 PM EDT", getTimestampInNextHour()));
+  schedule.scheduleJob("0 8 * * *", () => {
+    const { formattedTime, relativeTime } = getTimestampInNextHour();
+    startWashingCycle("5 AM EDT", formattedTime, relativeTime);
+  });
+
+  schedule.scheduleJob("0 18 * * *", () => {
+    const { formattedTime, relativeTime } = getTimestampInNextHour();
+    startWashingCycle("3 PM EDT", formattedTime, relativeTime);
+  });
 });
 
 client.on("messageCreate", async (message) => {
   if (message.content.toLowerCase() === "!test") {
-    startWashingCycle("Test Run", getTimestampInNextHour());
+    const { formattedTime, relativeTime } = getTimestampInNextHour();
+    startWashingCycle("Test Run", formattedTime, relativeTime);
     message.channel.send("🧪 Test started.");
   }
 
@@ -101,7 +109,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       resetWashCycle();
     } else if (interaction.customId === "no") {
       await interaction.reply(`${userId} can't wash. Trying another member...`);
-      startWashingCycle("Retry", getTimestampInNextHour());
+      const { formattedTime, relativeTime } = getTimestampInNextHour();
+      startWashingCycle("Retry", formattedTime, relativeTime);
     } else if (interaction.customId === "partial") {
       const modal = new ModalBuilder()
         .setCustomId("partial_modal")
@@ -141,14 +150,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-function startWashingCycle(targetTime, { formattedTime, relativeTime }) {
-  const channel = client.channels.cache.get("1358603838915088595"); // Replace with your channel ID
+function startWashingCycle(targetTime, formattedTime, relativeTime) {
+  const channel = client.channels.cache.get("1358603838915088595");
   if (!channel) return console.error("Channel not found.");
 
   const available = gangMembers.filter((m) => !selectedMembers.includes(m));
-  if (available.length === 0) {
-    selectedMembers = [];
-  }
+  if (available.length === 0) selectedMembers = [];
 
   const reFiltered = gangMembers.filter((m) => !selectedMembers.includes(m));
   const selected = reFiltered[Math.floor(Math.random() * reFiltered.length)];
@@ -190,15 +197,14 @@ function resetWashCycle() {
 }
 
 function getTimestampInNextHour() {
-  const now = DateTime.now().setZone("America/New_York"); // Ensure it's in EDT
-  const targetTimes = [5, 15]; // 5 AM and 3 PM
-  const targetTime = targetTimes.find((hour) => hour > now.hour) || targetTimes[0]; // Find the next target time
-  
-  const targetDateTime = now.set({ hour: targetTime, minute: 0, second: 0, millisecond: 0 }); // Set to next 5 AM or 3 PM
-  
-  const formattedTime = `<t:${Math.floor(targetDateTime.toSeconds())}:F>`; // Format the time for Discord
-  const relativeTime = `<t:${Math.floor(targetDateTime.toSeconds())}:R>`; // Format the relative time for Discord
-  
+  const now = DateTime.now().setZone("America/New_York");
+  const targetTimes = [5, 15];
+  const nextTime = targetTimes.find((hour) => hour > now.hour) || targetTimes[0];
+
+  const targetDateTime = now.set({ hour: nextTime, minute: 0, second: 0, millisecond: 0 });
+  const formattedTime = `<t:${Math.floor(targetDateTime.toSeconds())}:F>`;
+  const relativeTime = `<t:${Math.floor(targetDateTime.toSeconds())}:R>`;
+
   return { formattedTime, relativeTime };
 }
 

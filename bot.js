@@ -192,18 +192,21 @@ function resetWashCycle() {
 }
 
 function getTimestampInNextHour() {
-  const now = DateTime.now().setZone("America/New_York"); // Adjust to EDT time zone
+  const now = DateTime.now().setZone("America/New_York"); // Ensure it's in EDT
   const targetTimes = [5, 15]; // 5 AM and 3 PM
-  const targetTime = targetTimes.find((hour) => hour > now.hour) || targetTimes[0];
-
-  const targetDateTime = now.set({ hour: targetTime, minute: 0, second: 0, millisecond: 0 });
-  const timeLeft = targetDateTime.diff(now, ['hours', 'minutes']).toObject(); // Get the time left in hours and minutes
-
+  const targetTime = targetTimes.find((hour) => hour > now.hour) || targetTimes[0]; // Find the next target time
+  
+  const targetDateTime = now.set({ hour: targetTime, minute: 0, second: 0, millisecond: 0 }); // Set to next 5 AM or 3 PM
+  
+  // Calculate the time remaining in hours and minutes
+  const timeLeft = targetDateTime.diff(now, ['hours', 'minutes']).toObject();
+  
   return {
-    formattedTime: targetDateTime.toLocaleString(DateTime.DATETIME_MED), // formatted date
-    relativeTime: targetDateTime.toRelative(), // relative time (e.g., "in 3 hours")
-    timeLeft: `${Math.floor(timeLeft.hours)} hours and ${Math.floor(timeLeft.minutes)} minutes`, // time remaining
+    formattedTime: targetDateTime.toLocaleString(DateTime.DATETIME_MED), // Human-readable date-time format
+    relativeTime: targetDateTime.toRelative(), // Relative time (e.g., "in 3 hours")
+    timeLeft: `${Math.floor(timeLeft.hours)} hours and ${Math.floor(timeLeft.minutes)} minutes`, // Time remaining in hours and minutes
   };
 }
+
 
 client.login(process.env.token);

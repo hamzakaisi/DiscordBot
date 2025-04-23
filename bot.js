@@ -198,10 +198,18 @@ function resetWashCycle() {
 
 function getTimestampInNextHour() {
   const now = DateTime.now().setZone("America/New_York");
-  const targetTimes = [5, 15];
-  const nextTime = targetTimes.find((hour) => hour > now.hour) || targetTimes[0];
+  const targetTimes = [5, 15]; // 5 AM and 3 PM
 
-  const targetDateTime = now.set({ hour: nextTime, minute: 0, second: 0, millisecond: 0 });
+  let nextTime = targetTimes.find((hour) => hour > now.hour);
+  let targetDateTime;
+
+  if (nextTime !== undefined) {
+    targetDateTime = now.set({ hour: nextTime, minute: 0, second: 0, millisecond: 0 });
+  } else {
+    // If no upcoming time today, pick first tomorrow (e.g. 5 AM next day)
+    targetDateTime = now.plus({ days: 1 }).set({ hour: targetTimes[0], minute: 0, second: 0, millisecond: 0 });
+  }
+
   const formattedTime = `<t:${Math.floor(targetDateTime.toSeconds())}:F>`;
   const relativeTime = `<t:${Math.floor(targetDateTime.toSeconds())}:R>`;
 
